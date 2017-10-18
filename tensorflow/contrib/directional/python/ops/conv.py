@@ -133,7 +133,7 @@ if __name__ == '__main__':
   import numpy as np
 
   #### Spherical coordinates ####
-  x = tf.placeholder(tf.float32, [None, 24, 152, 76, 2])
+  x = tf.placeholder(tf.float32, [None, 24, 76, 151, 2])
 
   # Filter shape
   filter_shape = [3, 5, 5, 2, 16]

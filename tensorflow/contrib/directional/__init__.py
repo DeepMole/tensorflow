@@ -17,5 +17,9 @@ Module for supporting directional data in tensorflow, in particular spherical
 convolutions.
 """
 
-from tensorflow.contrib.directional.ops import conv_spherical
-from tensorflow.contrib.directional.ops import conv_spherical_cubed_sphere
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+from tensorflow.contrib.directional.python.ops.conv import conv_spherical
+from tensorflow.contrib.directional.python.ops.conv import conv_spherical_cubed_sphere
