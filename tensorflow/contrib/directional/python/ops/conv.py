@@ -46,15 +46,15 @@ def conv_spherical(input, filter, strides, padding, name=None):
     A `Tensor`. Has the same type as `input`.
   """
 
-  filter_size_r, filter_size_theta, filter_size_phi = filter.shape.as_list()[1:-1]
+  filter_size_r, filter_size_theta, filter_size_phi = filter.shape.as_list()[:3]
 
   # Standard wrapping in r and theta dimensions
   padded_input = input
   if padding == "SAME":
       padded_input = tf.pad(input,
                             [(0, 0),
-                             (filter_size_r / 2, filter_size_r / 2),
-                             (filter_size_theta / 2, filter_size_theta / 2),
+                             (filter_size_r // 2, filter_size_r // 2),
+                             (filter_size_theta // 2, filter_size_theta // 2),
                              (0, 0),
                              (0, 0)], "CONSTANT")
       
@@ -69,6 +69,50 @@ def conv_spherical(input, filter, strides, padding, name=None):
                       strides=strides,
                       padding="VALID",
                       name=name)
+
+
+def avg_pool_spherical(value, ksize, strides, padding, name=None):
+  r"""Performs average pooling of the input, using spherical coordinates.
+
+  Args:
+    value: A `Tensor`. Must be one of the following types: `float32`, `float64`.
+      Shape `[batch, in_r, in_theta, in_phi, in_channels]`.
+    ksize: A list of ints that has length >= 5. 
+      The size of the window for each dimension of the input tensor. 
+      Must have `ksize[0] = ksize[4] = 1`.
+    strides: A list of `ints` that has length `>= 5`.
+      1-D tensor of length 5. The stride of the sliding window for each
+      dimension of `input`. Must have `strides[0] = strides[4] = 1`.
+    padding: A `string` from: `"SAME", "VALID"`.
+      The type of padding algorithm to use for the radial and polar dimensions.
+      Note that the azimuthal dimension will always use periodic padding.
+    name: A name for the operation (optional).
+
+  Returns:
+    A `Tensor`. Has the same type as `input`.
+  """
+
+  ksize_r, ksize_theta, ksize_phi = ksize[1:4]
+
+  # Standard wrapping in r and theta dimensions
+  padded_input = value
+  if padding == "SAME":
+      padded_input = tf.pad(value,
+                            [(0, 0),
+                             (ksize_r // 2, ksize_r // 2),
+                             (ksize_theta // 2, ksize_theta // 2),
+                             (0, 0),
+                             (0, 0)], "CONSTANT")
+
+  # # Pad input with periodic image
+  # padded_input = pad_wrap.pad_wrap(value, [(0, 0), (0, 0), (0, 0), 
+  #                                          (ksize_phi // 2, ksize_phi // 2), (0, 0)])
+
+  return tf.nn.avg_pool3d(padded_input,
+                          ksize=ksize,
+                          strides=strides,
+                          padding='VALID')
+  
 
 
 def conv_spherical_cubed_sphere(input, filter, strides, padding, name=None):
@@ -103,16 +147,16 @@ def conv_spherical_cubed_sphere(input, filter, strides, padding, name=None):
     A `Tensor`. Has the same type as `input`.
   """
 
-  filter_size_r, filter_size_xi, filter_size_eta = filter.shape.as_list()[1:-1]
+  filter_size_r, filter_size_xi, filter_size_eta = filter.shape.as_list()[:3]
 
   radial_padding_size = (0,0)
   if padding == "SAME":
-    radial_padding_size = (filter_size_r / 2, filter_size_r / 2)
+    radial_padding_size = (filter_size_r // 2, filter_size_r // 2)
 
   padded_input = pad_cubed_sphere.pad_cubed_sphere_grid(input,
                                                         r_padding=radial_padding_size,
-                                                        xi_padding=(filter_size_xi / 2, filter_size_xi / 2),
-                                                        eta_padding=(filter_size_eta / 2, filter_size_eta / 2))
+                                                        xi_padding=(filter_size_xi // 2, filter_size_xi // 2),
+                                                        eta_padding=(filter_size_eta // 2, filter_size_eta // 2))
   convs = []
   for patch in range(padded_input.get_shape().as_list()[1]):
     convs.append(
@@ -125,6 +169,48 @@ def conv_spherical_cubed_sphere(input, filter, strides, padding, name=None):
   conv = tf.stack(convs, axis=1, name=name)
 
   return conv
+
+
+def avg_pool_spherical_cubed_sphere(value, ksize, strides, padding, name=None):
+  r"""Performs average pooling of the input, using cubed sphere coordinates.
+
+  Args:
+    value: A `Tensor`. Must be one of the following types: `float32`, `float64`.
+      Shape `[batch, in_r, in_xi, in_eta, in_channels]`.
+    ksize: A list of ints that has length >= 5. 
+      The size of the window for each dimension of the input tensor. 
+      Must have `ksize[0] = ksize[4] = 1`.
+    strides: A list of `ints` that has length `>= 5`.
+      1-D tensor of length 5. The stride of the sliding window for each
+      dimension of `input`. Must have `strides[0] = strides[4] = 1`.
+    padding: A `string` from: `"SAME", "VALID"`.
+      The type of padding algorithm to use for the radial and polar dimensions.
+      Note that the azimuthal dimension will always use periodic padding.
+    name: A name for the operation (optional).
+
+  Returns:
+    A `Tensor`. Has the same type as `input`.
+  """
+  
+  ksize_r, ksize_xi, ksize_eta = ksize[1:4]
+
+  radial_padding_size = (0,0)
+  if padding == "SAME":
+    radial_padding_size = (filter_size_r // 2, filter_size_r // 2)
+  
+  padded_input = pad_cubed_sphere.pad_cubed_sphere_grid(value,
+                                                        r_padding=radial_padding_size,
+                                                        xi_padding=(ksize_xi // 2, ksize_xi // 2),
+                                                        eta_padding=(ksize_eta // 2, ksize_eta // 2))
+
+  pools = []
+  for patch in range(padded_input.get_shape().as_list()[1]):
+    pools.append(tf.nn.avg_pool3d(padded_input[:, patch, :, :, :, :],
+                                  ksize=[1, ksize_r, ksize_xi, ksize_eta, 1],
+                                  strides=strides,
+                                  padding='VALID'))
+
+  return tf.stack(pools, axis=1, name=name)
 
 
 
@@ -151,6 +237,12 @@ if __name__ == '__main__':
   b = tf.Variable(tf.truncated_normal(filter_shape[-1:], stddev=0.1), name="b")
   layer = tf.nn.bias_add(conv_spherical, b)
 
+  # Add avg pooling
+  pool = avg_pool_spherical(layer, 
+                            ksize=[1,1,3,3,1],
+                            strides=[1,1,2,2,1],
+                            padding='VALID')
+
 
 
   #### Cubed sphere coordinates ####    
@@ -172,3 +264,8 @@ if __name__ == '__main__':
   b = tf.Variable(tf.truncated_normal(filter_shape[-1:], stddev=0.1), name="b")
   layer = tf.nn.bias_add(conv_spherical_cs, b)
 
+  # Add avg pooling
+  pool = avg_pool_spherical_cubed_sphere(layer, 
+                                         ksize=[1,1,3,3,1],
+                                         strides=[1,1,2,2,1],
+                                         padding='VALID')
